@@ -1,0 +1,18 @@
+# Everything the images build themselves
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+*.tsbuildinfo
+
+# Local state and secrets
+.git
+.env
+.env.*
+!.env.example
+
+# Personal files
+asmt.pdf
+*.log

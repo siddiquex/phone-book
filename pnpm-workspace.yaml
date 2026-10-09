@@ -1,0 +1,24 @@
+packages:
+  - apps/*
+  - shared/*
+
+allowBuilds:
+  unrs-resolver: false
+  sharp: false
+  esbuild: true
+
+catalog:
+  # TS 7 is blocked by typescript-eslint (via eslint-config-next); bump once it supports 7.1+
+  typescript: ^6.0.3
+  "@types/node": ^26.6.4
+  drizzle-orm: 0.45.4
+  drizzle-kit: ^0.31.11
+  zod: ^4.6.5
+  eslint: ^10.12.0
+  vitest: ^5.0.3
+  "@vitest/coverage-v8": ^5.0.3
+  pg: ^8.23.1
+  dotenv: ^18.0.6
+
+minimumReleaseAgeExclude:
+  - drizzle-orm@0.45.4

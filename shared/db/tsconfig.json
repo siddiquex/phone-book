@@ -1,0 +1,4 @@
+{
+  "extends": "@phone-book/config/tsconfig.lib.json",
+  "include": ["src/**/*.ts"]
+}

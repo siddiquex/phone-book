@@ -1,0 +1,22 @@
+import { config } from 'dotenv';
+import { z } from 'zod';
+
+// Loads apps/api/.env if present, else the repo-root .env.
+config({ path: ['.env', '../../.env'] });
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(5000),
+  DATABASE_URL: z.url(),
+});
+
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  throw new Error(
+    `Invalid environment:\n${z.prettifyError(parsed.error)}\n` +
+      'Copy .env.example to .env at the repo root: cp .env.example .env',
+  );
+}
+
+export const env = parsed.data;
