@@ -1,6 +1,7 @@
 import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
+import { NAME_MAX, PHONE_MAX } from "./limits.js";
 
 export const contacts = pgTable(
   "contacts",
@@ -21,20 +22,22 @@ export const contacts = pgTable(
   (table) => [index("contacts_owner_id_idx").on(table.ownerId)],
 );
 
-// Kept internal: the API deals in the shapes below, which are derived from these two.
 type Contact = typeof contacts.$inferSelect;
 type NewContact = typeof contacts.$inferInsert;
 
-export type PublicContact = Omit<Contact, "ownerId">;
+// What the API returns: no owner id (it is the credential) and ISO strings, not row Dates.
+export type PublicContact = Omit<Contact, "ownerId" | "createdAt" | "updatedAt"> & {
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type ContactInput = Omit<NewContact, "id" | "ownerId" | "createdAt" | "updatedAt">;
 export type ContactPatch = Partial<ContactInput>;
 
-// Server-owned and owner-owned columns are omitted: the client may only send the three fields.
 const clientFields = createInsertSchema(contacts, {
-  firstName: (schema) => schema.trim().min(1).max(100),
-  lastName: (schema) => schema.trim().min(1).max(100),
-  phone: (schema) => schema.trim().min(1).max(32),
+  firstName: (schema) => schema.trim().min(1).max(NAME_MAX),
+  lastName: (schema) => schema.trim().min(1).max(NAME_MAX),
+  phone: (schema) => schema.trim().min(1).max(PHONE_MAX),
 }).omit({ id: true, ownerId: true, createdAt: true, updatedAt: true });
 
 export const contactCreateSchema = clientFields;
@@ -43,7 +46,6 @@ export const contactUpdateSchema = clientFields.partial().refine(
   { message: "Provide at least one field to update" },
 );
 
-// The id shape is taken from the column, so it follows any change to it.
 export const contactIdsSchema = z.object({
   ids: z.array(createSelectSchema(contacts).shape.id).min(1).max(1000),
 });

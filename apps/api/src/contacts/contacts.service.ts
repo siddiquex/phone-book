@@ -9,11 +9,23 @@ import {
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { DB } from '../database.module.js';
 
-// The one place ownership is enforced: every statement over a single row goes through this.
 const ownedBy = (ownerId: string, id: string) =>
   and(eq(contacts.id, id), eq(contacts.ownerId, ownerId));
 
-// The owner id is the credential, so it never leaves the cookie.
+/** Rows carry Date objects; the response type says ISO strings, so convert rather than lie. */
+const wire = (row: {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  createdAt: Date;
+  updatedAt: Date;
+}): PublicContact => ({
+  ...row,
+  createdAt: row.createdAt.toISOString(),
+  updatedAt: row.updatedAt.toISOString(),
+});
+
 const publicColumns = {
   id: contacts.id,
   firstName: contacts.firstName,
@@ -28,12 +40,14 @@ export class ContactsService {
   constructor(@Inject(DB) private readonly db: Db) {}
 
   // Every statement filters by ownerId: another browser's rows are unreachable, not just hidden.
-  list(ownerId: string): Promise<PublicContact[]> {
-    return this.db
+  async list(ownerId: string): Promise<PublicContact[]> {
+    const rows = await this.db
       .select(publicColumns)
       .from(contacts)
       .where(eq(contacts.ownerId, ownerId))
       .orderBy(asc(contacts.firstName), asc(contacts.lastName), asc(contacts.id));
+
+    return rows.map(wire);
   }
 
   async create(ownerId: string, input: ContactInput): Promise<PublicContact> {
@@ -42,7 +56,7 @@ export class ContactsService {
       .values({ ...input, ownerId })
       .returning(publicColumns);
 
-    return created;
+    return wire(created);
   }
 
   async update(ownerId: string, id: string, patch: ContactPatch): Promise<PublicContact> {
@@ -54,7 +68,7 @@ export class ContactsService {
 
     if (!updated) throw new NotFoundException(`No contact ${id}`);
 
-    return updated;
+    return wire(updated);
   }
 
   async remove(ownerId: string, id: string): Promise<void> {
