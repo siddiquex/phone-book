@@ -44,7 +44,7 @@ describe('Contacts (e2e)', () => {
     await browser
       .get('/contacts')
       .expect(200)
-      .expect((res) => expect(res.body.some((c: { id: string }) => c.id === id)).toBe(false));
+      .expect((res) => expect(res.body.items.some((c: { id: string }) => c.id === id)).toBe(false));
   });
 
   it('bulk-deletes a selection, ignoring ids the caller does not own', async () => {
@@ -71,22 +71,53 @@ describe('Contacts (e2e)', () => {
     await other
       .get('/contacts')
       .expect(200)
-      .expect((res) => expect(res.body).toEqual([]));
+      .expect((res) => expect(res.body.items).toEqual([]));
     await mine
       .get('/contacts')
       .expect(200)
-      .expect((res) => expect(res.body.map((c: { id: string }) => c.id)).toHaveLength(3));
+      .expect((res) => expect(res.body.items.map((c: { id: string }) => c.id)).toHaveLength(3));
 
     await mine.delete('/contacts').send({ ids: [dropA, dropB] }).expect(204);
     await mine
       .get('/contacts')
       .expect(200)
-      .expect((res) => expect(res.body.map((c: { id: string }) => c.id)).toEqual([keep]));
+      .expect((res) => expect(res.body.items.map((c: { id: string }) => c.id)).toEqual([keep]));
 
     // An empty selection is refused rather than read as "everything".
     await mine.delete('/contacts').send({ ids: [] }).expect(400);
 
     await mine.delete(`/contacts/${keep}`).expect(204);
+  });
+
+  it('pages through the book with a cursor', async () => {
+    const browser = request.agent(app.getHttpServer());
+    const created: string[] = [];
+
+    for (const firstName of ['Alan', 'Grace', 'Katherine']) {
+      const res = await browser
+        .post('/contacts')
+        .send({ firstName, lastName: 'Paged', phone: '+61 444 000 000' })
+        .expect(201);
+      created.push(res.body.id);
+    }
+
+    const first = await browser.get('/contacts?limit=2').expect(200);
+    expect(first.body.items.map((c: { firstName: string }) => c.firstName)).toEqual([
+      'Alan',
+      'Grace',
+    ]);
+    expect(first.body.nextCursor).toEqual(expect.any(String));
+
+    const second = await browser
+      .get(`/contacts?limit=2&cursor=${encodeURIComponent(first.body.nextCursor)}`)
+      .expect(200);
+    expect(second.body.items.map((c: { firstName: string }) => c.firstName)).toEqual(['Katherine']);
+    expect(second.body.nextCursor).toBeNull();
+
+    await browser.get('/contacts?cursor=not-a-cursor').expect(400);
+    await browser.get('/contacts?limit=0').expect(400);
+
+    await browser.delete('/contacts').send({ ids: created }).expect(204);
   });
 
   it('keeps one browser out of another browser book', async () => {
@@ -103,7 +134,7 @@ describe('Contacts (e2e)', () => {
     await other
       .get('/contacts')
       .expect(200)
-      .expect((res) => expect(res.body.some((c: { id: string }) => c.id === id)).toBe(false));
+      .expect((res) => expect(res.body.items.some((c: { id: string }) => c.id === id)).toBe(false));
 
     await other.patch(`/contacts/${id}`).send({ phone: 'x' }).expect(404);
     await other.delete(`/contacts/${id}`).expect(404);

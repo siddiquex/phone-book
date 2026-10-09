@@ -9,12 +9,15 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   contactCreateSchema,
+  contactListQuerySchema,
   contactIdsSchema,
   contactUpdateSchema,
   type ContactIds,
+  type ContactListQuery,
   type ContactInput,
   type ContactPatch,
 } from '@phone-book/db';
@@ -27,8 +30,11 @@ export class ContactsController {
   constructor(private readonly contacts: ContactsService) {}
 
   @Get()
-  list(@Owner() ownerId: string) {
-    return this.contacts.list(ownerId);
+  list(
+    @Owner() ownerId: string,
+    @Query(new ZodPipe(contactListQuerySchema)) query: ContactListQuery,
+  ) {
+    return this.contacts.list(ownerId, query);
   }
 
   @Post()

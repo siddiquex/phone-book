@@ -51,3 +51,12 @@ export const contactIdsSchema = z.object({
 });
 
 export type ContactIds = z.infer<typeof contactIdsSchema>;
+
+export const contactListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  cursor: z.string().max(512).optional(),
+});
+
+export type ContactListQuery = z.infer<typeof contactListQuerySchema>;
+
+export type ContactPage = { items: PublicContact[]; nextCursor: string | null };
