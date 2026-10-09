@@ -102,6 +102,7 @@ describe('Contacts (e2e)', () => {
     }
 
     const first = await browser.get('/contacts?limit=2').expect(200);
+    expect(first.body.total).toBe(3);
     expect(first.body.items.map((c: { firstName: string }) => c.firstName)).toEqual([
       'Alan',
       'Grace',
@@ -116,6 +117,56 @@ describe('Contacts (e2e)', () => {
 
     await browser.get('/contacts?cursor=not-a-cursor').expect(400);
     await browser.get('/contacts?limit=0').expect(400);
+
+    await browser.delete('/contacts').send({ ids: created }).expect(204);
+  });
+
+  it('searches names and numbers, and totals the whole match', async () => {
+    const browser = request.agent(app.getHttpServer());
+    const people = [
+      { firstName: 'Ada', lastName: 'Lovelace', phone: '+61 400 111 222' },
+      { firstName: 'Alan', lastName: 'Turing', phone: '+61 455 555 555' },
+      { firstName: 'Grace', lastName: 'Hopper', phone: '+61 422 222 222' },
+    ];
+    const created: string[] = [];
+
+    for (const person of people) {
+      const res = await browser.post('/contacts').send(person).expect(201);
+      created.push(res.body.id);
+    }
+
+    const names = (body: { items: { firstName: string }[] }) =>
+      body.items.map((contact) => contact.firstName);
+
+    // Word prefixes: "al" opens Alan, but opens neither word of Ada Lovelace.
+    const first = await browser.get('/contacts?search=al').expect(200);
+    expect(names(first.body)).toEqual(['Alan']);
+
+    const last = await browser.get('/contacts?search=lov').expect(200);
+    expect(names(last.body)).toEqual(['Ada']);
+    expect(last.body.total).toBe(1);
+
+    const words = await browser.get('/contacts?search=ada lov').expect(200);
+    expect(names(words.body)).toEqual(['Ada']);
+
+    const spread = await browser.get('/contacts?search=grace hop').expect(200);
+    expect(names(spread.body)).toEqual(['Grace']);
+
+    const digits = await browser.get('/contacts?search=422').expect(200);
+    expect(names(digits.body)).toEqual(['Grace']);
+
+    // "ace" sits inside Grace, but never opens a name word.
+    const middle = await browser.get('/contacts?search=ace').expect(200);
+    expect(names(middle.body)).toEqual([]);
+    expect(middle.body.total).toBe(0);
+
+    const all = await browser.get('/contacts').expect(200);
+    expect(all.body.total).toBe(3);
+
+    // The total counts the match, not the page.
+    const paged = await browser.get('/contacts?limit=2').expect(200);
+    expect(paged.body.items).toHaveLength(2);
+    expect(paged.body.total).toBe(3);
 
     await browser.delete('/contacts').send({ ids: created }).expect(204);
   });

@@ -67,18 +67,38 @@ export class ContactsService {
   // Every statement filters by ownerId: another browser's rows are unreachable, not just hidden.
   async list(ownerId: string, query: ContactListQuery): Promise<ContactPage> {
     const after = query.cursor ? cursor.decode(query.cursor) : null;
+    const named = sql`(${contacts.firstName} || ' ' || ${contacts.lastName})`;
+
+    // Every word must land on a name word or in the number, so "grace hop" and "422" both work.
+    const matched = (query.search ?? "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => {
+        const digits = word.replace(/\D/g, "");
+        const byName = sql`(${named} ILIKE ${word + "%"} OR ${named} ILIKE ${"% " + word + "%"})`;
+
+        return digits.length > 0
+          ? sql`(${byName} OR regexp_replace(${contacts.phone}, '\\D', '', 'g') LIKE ${"%" + digits + "%"})`
+          : byName;
+      });
+
     const owned = eq(contacts.ownerId, ownerId);
+    const where = and(owned, ...matched);
     const past = after
       ? sql`(${contacts.firstName}, ${contacts.lastName}, ${contacts.id}) > (${after[0]}, ${after[1]}, ${after[2]})`
       : undefined;
 
-    // One extra row answers "is there another page?" without a second query.
-    const rows = await this.db
-      .select(publicColumns)
-      .from(contacts)
-      .where(after ? and(owned, past) : owned)
-      .orderBy(asc(contacts.firstName), asc(contacts.lastName), asc(contacts.id))
-      .limit(query.limit + 1);
+    const [rows, counted] = await Promise.all([
+      // One extra row answers "is there another page?" without a second query.
+      this.db
+        .select(publicColumns)
+        .from(contacts)
+        .where(and(where, past))
+        .orderBy(asc(contacts.firstName), asc(contacts.lastName), asc(contacts.id))
+        .limit(query.limit + 1),
+      // Counted without the cursor: the total is the whole match, not what is left of it.
+      this.db.select({ total: sql<number>`count(*)::int` }).from(contacts).where(where),
+    ]);
 
     const items = rows.slice(0, query.limit);
     const last = items.at(-1);
@@ -86,6 +106,7 @@ export class ContactsService {
     return {
       items: items.map(wire),
       nextCursor: rows.length > query.limit && last ? cursor.encode(last) : null,
+      total: counted[0]?.total ?? 0,
     };
   }
 
