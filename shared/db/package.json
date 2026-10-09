@@ -29,7 +29,9 @@
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
-    "pg": "catalog:"
+    "drizzle-zod": "catalog:",
+    "pg": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@phone-book/config": "workspace:*",

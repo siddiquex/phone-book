@@ -1,0 +1,113 @@
+import { INestApplication } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import request from 'supertest';
+import { App } from 'supertest/types.js';
+import { AppModule } from './../src/app.module.js';
+
+// Needs a running Postgres with migrations applied: `docker compose up -d && pnpm db:migrate`.
+describe('Contacts (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('round-trips a contact', async () => {
+    const browser = request.agent(app.getHttpServer());
+
+    const created = await browser
+      .post('/contacts')
+      .send({ firstName: 'Ada', lastName: 'Lovelace', phone: '+61 400 000 000' })
+      .expect(201);
+
+    expect(created.body).toMatchObject({ firstName: 'Ada', phone: '+61 400 000 000' });
+    expect(created.body).not.toHaveProperty('ownerId');
+
+    const { id } = created.body;
+
+    await browser
+      .patch(`/contacts/${id}`)
+      .send({ phone: '+61 411 111 111' })
+      .expect(200)
+      .expect((res) => expect(res.body.phone).toBe('+61 411 111 111'));
+
+    await browser.delete(`/contacts/${id}`).expect(204);
+    await browser
+      .get('/contacts')
+      .expect(200)
+      .expect((res) => expect(res.body.some((c: { id: string }) => c.id === id)).toBe(false));
+  });
+
+  it('bulk-deletes a selection, ignoring ids the caller does not own', async () => {
+    const mine = request.agent(app.getHttpServer());
+    const other = request.agent(app.getHttpServer());
+
+    const ids: string[] = [];
+    for (const firstName of ['Bulk A', 'Bulk B', 'Bulk C']) {
+      const res = await mine
+        .post('/contacts')
+        .send({ firstName, lastName: 'Bulk', phone: '+61 444 444 444' })
+        .expect(201);
+      ids.push(res.body.id);
+    }
+
+    const [keep, dropA, dropB] = ids;
+    const theirs = await other
+      .post('/contacts')
+      .send({ firstName: 'Theirs', lastName: 'Not Yours', phone: '+61 455 555 555' })
+      .expect(201);
+
+    await other.delete('/contacts').send({ ids: [dropA, theirs.body.id] }).expect(204);
+
+    await other
+      .get('/contacts')
+      .expect(200)
+      .expect((res) => expect(res.body).toEqual([]));
+    await mine
+      .get('/contacts')
+      .expect(200)
+      .expect((res) => expect(res.body.map((c: { id: string }) => c.id)).toHaveLength(3));
+
+    await mine.delete('/contacts').send({ ids: [dropA, dropB] }).expect(204);
+    await mine
+      .get('/contacts')
+      .expect(200)
+      .expect((res) => expect(res.body.map((c: { id: string }) => c.id)).toEqual([keep]));
+
+    // An empty selection is refused rather than read as "everything".
+    await mine.delete('/contacts').send({ ids: [] }).expect(400);
+
+    await mine.delete(`/contacts/${keep}`).expect(204);
+  });
+
+  it('keeps one browser out of another browser book', async () => {
+    const mine = request.agent(app.getHttpServer());
+    const other = request.agent(app.getHttpServer());
+
+    const created = await mine
+      .post('/contacts')
+      .send({ firstName: 'Grace', lastName: 'Hopper', phone: '+61 422 222 222' })
+      .expect(201);
+
+    const { id } = created.body;
+
+    await other
+      .get('/contacts')
+      .expect(200)
+      .expect((res) => expect(res.body.some((c: { id: string }) => c.id === id)).toBe(false));
+
+    await other.patch(`/contacts/${id}`).send({ phone: 'x' }).expect(404);
+    await other.delete(`/contacts/${id}`).expect(404);
+
+    await mine.delete(`/contacts/${id}`).expect(204);
+  });
+});

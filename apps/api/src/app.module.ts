@@ -1,12 +1,17 @@
-import { Module } from '@nestjs/common';
-import { createDb, type Db } from '@phone-book/db';
+import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { AppController } from './app.controller.js';
-import { env } from './env.js';
-
-const DB = Symbol('DB');
+import { ContactsController } from './contacts/contacts.controller.js';
+import { ContactsModule } from './contacts/contacts.module.js';
+import { DatabaseModule } from './database.module.js';
+import { ownerMiddleware } from './owner.js';
 
 @Module({
+  imports: [DatabaseModule, ContactsModule],
   controllers: [AppController],
-  providers: [{ provide: DB, useFactory: (): Db => createDb(env.DATABASE_URL) }],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // Only the contacts routes carry an owner; /health stays open to infrastructure probes.
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(ownerMiddleware).forRoutes(ContactsController);
+  }
+}

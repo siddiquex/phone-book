@@ -25,6 +25,8 @@ Every command is a script in the relevant `package.json`; root scripts aggregate
 - The Drizzle schema is the single source of truth for data shapes: write the table in
   `shared/db/src/schema.ts`, then derive row types (`typeof table.$inferSelect`) and validators
   (`drizzle-zod`'s `createInsertSchema`) from it rather than hand-writing either.
+- Contacts are owner-scoped: `owner_id` comes from the `owner_id` cookie
+  (`apps/api/src/owner.ts`), never from the request body, and every query filters by it.
 - `shared/db` compiles to `dist/` — run `pnpm build:shared` after editing it.
 - Schema changes: edit `shared/db/src/schema.ts`, then `pnpm db:generate`, and commit the SQL it
   writes to `shared/db/drizzle/`. Never hand-edit those files.
