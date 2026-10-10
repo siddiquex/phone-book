@@ -1,4 +1,8 @@
-import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
+import {
+  createParamDecorator,
+  InternalServerErrorException,
+  type ExecutionContext,
+} from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -12,19 +16,22 @@ const OWNER_ID = z.uuid();
 type OwningRequest = Request & { ownerId: string };
 
 function readCookie(header: string | undefined): string | undefined {
-  return header
-    ?.split(';')
+  const values = (header ?? '')
+    .split(';')
     .map((part) => part.trim().split('='))
-    .find(([key]) => key === OWNER_COOKIE)
-    ?.at(1);
+    .filter(([key]) => key === OWNER_COOKIE)
+    .map(([, value]) => value ?? '');
+
+  // A same-named cookie from another app on this host can arrive first; ours is the uuid.
+  return values.find((value) => OWNER_ID.safeParse(value).success);
 }
 
 // Identity by secret, not authentication: real auth replaces this file alone.
 export function ownerMiddleware(req: Request, res: Response, next: NextFunction): void {
-  const sent = readCookie(req.headers.cookie);
-  const ownerId = sent && OWNER_ID.safeParse(sent).success ? sent : randomUUID();
+  const existing = readCookie(req.headers.cookie);
+  const ownerId = existing ?? randomUUID();
 
-  if (ownerId !== sent) {
+  if (!existing) {
     res.cookie(OWNER_COOKIE, ownerId, {
       httpOnly: true,
       secure: env.COOKIE_SECURE,
@@ -38,7 +45,10 @@ export function ownerMiddleware(req: Request, res: Response, next: NextFunction)
   next();
 }
 
-export const Owner = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): string =>
-    ctx.switchToHttp().getRequest<OwningRequest>().ownerId,
-);
+export const Owner = createParamDecorator((_data: unknown, ctx: ExecutionContext): string => {
+  const ownerId = ctx.switchToHttp().getRequest<OwningRequest>().ownerId;
+  // Reachable only when the middleware is not applied, which would otherwise read as an empty book.
+  if (!ownerId) throw new InternalServerErrorException('No owner on the request');
+
+  return ownerId;
+});

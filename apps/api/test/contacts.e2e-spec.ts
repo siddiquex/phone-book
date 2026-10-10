@@ -83,7 +83,6 @@ describe('Contacts (e2e)', () => {
       .expect(200)
       .expect((res) => expect(res.body.items.map((c: { id: string }) => c.id)).toEqual([keep]));
 
-    // An empty selection is refused rather than read as "everything".
     await mine.delete('/contacts').send({ ids: [] }).expect(400);
 
     await mine.delete(`/contacts/${keep}`).expect(204);
@@ -163,7 +162,6 @@ describe('Contacts (e2e)', () => {
     const all = await browser.get('/contacts').expect(200);
     expect(all.body.total).toBe(3);
 
-    // The total counts the match, not the page.
     const paged = await browser.get('/contacts?limit=2').expect(200);
     expect(paged.body.items).toHaveLength(2);
     expect(paged.body.total).toBe(3);
