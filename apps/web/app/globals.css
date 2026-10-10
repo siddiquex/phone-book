@@ -7,6 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -36,40 +39,43 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  /* Below Tailwind's smallest blur (xs = 4px) */
+  --blur-2xs: 2px;
+
+  --radius-sm: calc(var(--radius) * 0.618);
+  --radius-md: calc(var(--radius) * 0.786);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) * 1.618);
+  --radius-2xl: calc(var(--radius) * 2.618);
+  --radius-3xl: calc(var(--radius) * 4.236);
+  --radius-4xl: calc(var(--radius) * 6.854);
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: #f2f2ed;
+  --foreground: #191a17;
+  --card: #f2f2ed;
+  --card-foreground: #191a17;
+  --popover: #f7f7f3;
+  --popover-foreground: #191a17;
+  --primary: #191a17;
+  --primary-foreground: #f2f2ed;
+  --secondary: #e6e6df;
+  --secondary-foreground: #191a17;
+  --muted: #e6e6df;
+  --muted-foreground: #6b6c63;
+  --accent: #e6e6df;
+  --accent-foreground: #191a17;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #d3d4ca;
+  --input: #d3d4ca;
+  --ring: #191a17;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -81,24 +87,24 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #000000;
+  --foreground: #ededed;
+  --card: #0a0a0a;
+  --card-foreground: #ededed;
+  --popover: #0f0f0f;
+  --popover-foreground: #ededed;
+  --primary: #ededed;
+  --primary-foreground: #000000;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ededed;
+  --muted: #1a1a1a;
+  --muted-foreground: #9e9e9e;
+  --accent: #1a1a1a;
+  --accent-foreground: #ededed;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #262626;
+  --input: #262626;
+  --ring: #ededed;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -112,6 +118,123 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+@utility scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+@keyframes settle {
+  from {
+    transform: scale(1.03);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@utility settle-in {
+  animation: settle 1200ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* The wrapper's overflow-x makes it a scrollport; contents drops that box so the header can stick. */
+@utility table-flat {
+  & [data-slot="table-container"] {
+    display: contents;
+  }
+}
+
+@utility rows-open {
+  grid-template-rows: 1fr;
+}
+
+@utility rows-closed {
+  grid-template-rows: 0fr;
+}
+
+@utility rows-animate {
+  transition: grid-template-rows 200ms ease-out, opacity 200ms ease-out;
+}
+
+@keyframes heartbeat {
+  0% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.07);
+  }
+  28% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.05);
+  }
+  56%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@utility heartbeat {
+  animation: heartbeat 820ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Mirrors the Toaster's duration token */
+@keyframes toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* Sonner injects its styles at runtime, so overrides need higher specificity. */
+[data-sonner-toast][data-styled="true"].cn-toast [data-close-button] {
+  left: auto;
+  right: 0;
+  transform: translate(35%, -35%);
+}
+
+/* Sonner's wrappers set min-width: auto, blocking truncation inside them */
+[data-sonner-toast][data-styled="true"].cn-toast [data-content],
+[data-sonner-toast][data-styled="true"].cn-toast [data-title] {
+  min-width: 0;
+}
+
+/* Needs a real element: sonner repaints ::before/::after over the page */
+[data-sonner-toast][data-styled="true"].cn-toast {
+  padding: 0;
+}
+
+.cn-toast .cn-timer {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--ring);
+  opacity: 0.35;
+  transform-origin: left;
+  border-end-start-radius: var(--border-radius, 8px);
+  border-end-end-radius: var(--border-radius, 8px);
+  animation: toast-timer var(--toast-duration, 6000ms) linear forwards;
+}
+
+.cn-toast:hover .cn-timer,
+.cn-toast:focus-within .cn-timer {
+  animation-play-state: paused;
+}
+
+[data-sonner-toast][data-expanded="true"].cn-toast::after {
+  content: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settle-in,
+  .heartbeat {
+    animation: none;
+  }
 }
 
 @layer base {
