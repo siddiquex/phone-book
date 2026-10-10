@@ -36,6 +36,7 @@ docker compose --profile app up --build   # Postgres + api + web, all containeri
 | `pnpm dev` | Web and API in watch mode |
 | `pnpm build` | Build every package |
 | `pnpm test` | API tests (Vitest) |
+| `pnpm test:e2e` | API end-to-end tests against Postgres |
 | `pnpm lint` | eslint (web) and oxlint (api) |
 | `pnpm typecheck` | `tsc --noEmit` across all packages |
 | `pnpm db:generate` | Generate SQL migrations from the Drizzle schema |

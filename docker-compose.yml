@@ -34,6 +34,8 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-phonebook}:${POSTGRES_PASSWORD:-phonebook}@postgres:5432/${POSTGRES_DB:-phonebook}
       PORT: 5000
+      # A Secure cookie is dropped over plain HTTP, so a host without TLS sets this false.
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
     ports:
       - "${API_PORT:-5000}:5000"
     healthcheck:
