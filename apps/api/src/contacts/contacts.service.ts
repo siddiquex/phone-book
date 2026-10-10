@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   contacts,
   type Contact,
@@ -9,14 +15,14 @@ import {
   type Db,
   type PublicContact,
 } from '@phone-book/db';
-import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { DB } from '../database.module.js';
 
 const fullName = sql`(${contacts.firstName} || ' ' || ${contacts.lastName})`;
 const phoneDigits = sql`regexp_replace(${contacts.phone}, '\\D', '', 'g')`;
 
-/** The order the list is read and paged in; the index is built to match it. */
+/** The index is built to match this order. */
 const pageOrder = [asc(contacts.firstName), asc(contacts.lastName), asc(contacts.id)];
 
 const responseColumns = {
@@ -39,7 +45,7 @@ const ownedRow = (ownerId: string, id: string) =>
 
 /** A name word starting with the term, or the digits inside the number. */
 const matchingWord = (word: string): SQL => {
-  // "%" and "_" are LIKE wildcards, so a term holding one must be escaped to stay literal.
+  // "%" and "_" are LIKE wildcards; escape them to keep the term literal.
   const literal = word.replace(/[\\%_]/g, '\\$&');
   const byName = sql`(${fullName} ILIKE ${literal + '%'} OR ${fullName} ILIKE ${'% ' + literal + '%'})`;
   const digits = word.replace(/\D/g, '');
@@ -47,7 +53,6 @@ const matchingWord = (word: string): SQL => {
   return digits.length > 0 ? sql`(${byName} OR ${phoneDigits} LIKE ${'%' + digits + '%'})` : byName;
 };
 
-/** Every word narrows the result, so "grace hop" and "422" both work. */
 const ownedAndMatching = (ownerId: string, search?: string) =>
   and(
     eq(contacts.ownerId, ownerId),
@@ -57,15 +62,12 @@ const ownedAndMatching = (ownerId: string, search?: string) =>
       .map(matchingWord),
   );
 
-/** Everything after that row in pageOrder: a keyset, so paging needs no offset. */
 const rowsAfter = ([firstName, lastName, id]: CursorPosition) =>
   sql`(${contacts.firstName}, ${contacts.lastName}, ${contacts.id}) > (${firstName}, ${lastName}, ${id})`;
 
-/** The page position: the sort key of the last row sent, checked before it is used. */
 const cursorPosition = z.tuple([z.string().min(1).max(100), z.string().min(1).max(100), z.uuid()]);
 type CursorPosition = z.infer<typeof cursorPosition>;
 
-/** Base64url, so clients pass it back untouched rather than parsing it. */
 const pageCursor = {
   encode: (row: { firstName: string; lastName: string; id: string }) =>
     toBase64Url([row.firstName, row.lastName, row.id]),
@@ -93,37 +95,66 @@ function fromBase64Url(raw: string): unknown {
 export class ContactsService {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  // Every statement filters by ownerId: another browser's rows are unreachable, not just hidden.
   async list(ownerId: string, query: ContactListQuery): Promise<ContactPage> {
     const filter = ownedAndMatching(ownerId, query.search);
     const after = query.cursor ? pageCursor.decode(query.cursor) : null;
 
     // One extra row answers "is there another page?" without a second query.
-    const [rows, counted] = await Promise.all([
+    const [rows, counted, whole] = await Promise.all([
       this.db
         .select(responseColumns)
         .from(contacts)
         .where(after ? and(filter, rowsAfter(after)) : filter)
         .orderBy(...pageOrder)
         .limit(query.limit + 1),
-      // The whole match, not the page, so it counts without the cursor.
+      // The whole match, not the page: counts without the cursor.
       this.db
         .select({ total: sql<number>`count(*)::int` })
         .from(contacts)
         .where(filter),
+      // The match count stops saying how big the book is once a search narrows it.
+      query.search
+        ? this.db
+            .select({ total: sql<number>`count(*)::int` })
+            .from(contacts)
+            .where(eq(contacts.ownerId, ownerId))
+        : null,
     ]);
 
     const items = rows.slice(0, query.limit).map(toResponse);
     const last = items.at(-1);
+    const total = counted[0]?.total ?? 0;
 
     return {
       items,
       nextCursor: rows.length > query.limit && last ? pageCursor.encode(last) : null,
-      total: counted[0]?.total ?? 0,
+      total,
+      bookTotal: whole?.[0]?.total ?? total,
     };
   }
 
+  private async assertPhoneIsFree(ownerId: string, phone: string, exceptId?: string) {
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) return;
+
+    const [taken] = await this.db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.ownerId, ownerId),
+          sql`${phoneDigits} = ${digits}`,
+          ...(exceptId ? [ne(contacts.id, exceptId)] : []),
+        ),
+      )
+      .limit(1);
+
+    if (taken) throw new ConflictException('That number is already saved on another contact');
+  }
+
   async create(ownerId: string, input: ContactInput): Promise<PublicContact> {
+    await this.assertPhoneIsFree(ownerId, input.phone);
+
     const [created] = await this.db
       .insert(contacts)
       .values({ ...input, ownerId })
@@ -133,6 +164,8 @@ export class ContactsService {
   }
 
   async update(ownerId: string, id: string, patch: ContactPatch): Promise<PublicContact> {
+    if (patch.phone) await this.assertPhoneIsFree(ownerId, patch.phone, id);
+
     const [updated] = await this.db
       .update(contacts)
       .set(patch)

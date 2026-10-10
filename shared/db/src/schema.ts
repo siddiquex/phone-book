@@ -7,7 +7,6 @@ export const contacts = pgTable(
   "contacts",
   {
     id: uuid().primaryKey().defaultRandom(),
-    // Who the book belongs to. Comes from the browser's owner cookie, never the request body.
     ownerId: uuid("owner_id").notNull(),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
@@ -18,7 +17,7 @@ export const contacts = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  // Owner first, then the page order, so the keyset walk needs no sort.
+  // Owner first, then the page order: the keyset walk needs no sort.
   (table) => [
     index("contacts_owner_name_idx").on(
       table.ownerId,
@@ -60,14 +59,21 @@ export const contactIdsSchema = z.object({
 
 export type ContactIds = z.infer<typeof contactIdsSchema>;
 
-/** Cursor and limit paging; the search narrows before either applies. */
+/** Base64url of [first, last, id], sized for two full-length names. */
+const CURSOR_MAX = Math.ceil((4 * NAME_MAX * 2 + 64) / 3) * 4;
+
 export const contactListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
-  cursor: z.string().max(512).optional(),
+  cursor: z.string().max(CURSOR_MAX).optional(),
   search: z.string().trim().max(100).optional(),
 });
 
 export type ContactListQuery = z.infer<typeof contactListQuerySchema>;
 
-/** A page, the cursor for the next one, and the size of the whole match. */
-export type ContactPage = { items: PublicContact[]; nextCursor: string | null; total: number };
+/** `total` is the match, `bookTotal` the whole book. */
+export type ContactPage = {
+  items: PublicContact[];
+  nextCursor: string | null;
+  total: number;
+  bookTotal: number;
+};

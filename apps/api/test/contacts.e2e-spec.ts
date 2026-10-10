@@ -52,10 +52,10 @@ describe('Contacts (e2e)', () => {
     const other = request.agent(app.getHttpServer());
 
     const ids: string[] = [];
-    for (const firstName of ['Bulk A', 'Bulk B', 'Bulk C']) {
+    for (const [index, firstName] of ['Bulk A', 'Bulk B', 'Bulk C'].entries()) {
       const res = await mine
         .post('/contacts')
-        .send({ firstName, lastName: 'Bulk', phone: '+61 444 444 444' })
+        .send({ firstName, lastName: 'Bulk', phone: `+61 444 444 44${index}` })
         .expect(201);
       ids.push(res.body.id);
     }
@@ -92,10 +92,10 @@ describe('Contacts (e2e)', () => {
     const browser = request.agent(app.getHttpServer());
     const created: string[] = [];
 
-    for (const firstName of ['Alan', 'Grace', 'Katherine']) {
+    for (const [index, firstName] of ['Alan', 'Grace', 'Katherine'].entries()) {
       const res = await browser
         .post('/contacts')
-        .send({ firstName, lastName: 'Paged', phone: '+61 444 000 000' })
+        .send({ firstName, lastName: 'Paged', phone: `+61 444 000 00${index}` })
         .expect(201);
       created.push(res.body.id);
     }
@@ -137,13 +137,13 @@ describe('Contacts (e2e)', () => {
     const names = (body: { items: { firstName: string }[] }) =>
       body.items.map((contact) => contact.firstName);
 
-    // Word prefixes: "al" opens Alan, but opens neither word of Ada Lovelace.
     const first = await browser.get('/contacts?search=al').expect(200);
     expect(names(first.body)).toEqual(['Alan']);
 
     const last = await browser.get('/contacts?search=lov').expect(200);
     expect(names(last.body)).toEqual(['Ada']);
     expect(last.body.total).toBe(1);
+    expect(last.body.bookTotal).toBe(3);
 
     const words = await browser.get('/contacts?search=ada lov').expect(200);
     expect(names(words.body)).toEqual(['Ada']);
@@ -154,7 +154,6 @@ describe('Contacts (e2e)', () => {
     const digits = await browser.get('/contacts?search=422').expect(200);
     expect(names(digits.body)).toEqual(['Grace']);
 
-    // "ace" sits inside Grace, but never opens a name word.
     const middle = await browser.get('/contacts?search=ace').expect(200);
     expect(names(middle.body)).toEqual([]);
     expect(middle.body.total).toBe(0);
@@ -167,6 +166,30 @@ describe('Contacts (e2e)', () => {
     expect(paged.body.total).toBe(3);
 
     await browser.delete('/contacts').send({ ids: created }).expect(204);
+  });
+
+  it('refuses a number another contact of the same book already holds, however it is written', async () => {
+    const mine = request.agent(app.getHttpServer());
+    const other = request.agent(app.getHttpServer());
+
+    const ada = await mine
+      .post('/contacts')
+      .send({ firstName: 'Ada', lastName: 'Lovelace', phone: '+61 400 111 222' })
+      .expect(201);
+
+    await mine
+      .post('/contacts')
+      .send({ firstName: 'Alan', lastName: 'Turing', phone: '61400111222' })
+      .expect(409);
+
+    await mine.patch(`/contacts/${ada.body.id}`).send({ phone: '61400111222' }).expect(200);
+
+    await other
+      .post('/contacts')
+      .send({ firstName: 'Alan', lastName: 'Turing', phone: '+61 400 111 222' })
+      .expect(201);
+
+    await mine.delete(`/contacts/${ada.body.id}`).expect(204);
   });
 
   it('keeps one browser out of another browser book', async () => {
