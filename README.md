@@ -65,4 +65,21 @@ look like a new browser and the book would come back empty.
 | `shared/db` | Drizzle schema and Postgres client |
 | `shared/config` | Shared tsconfig bases |
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request: lint, typecheck, unit tests, then
+migrations against a PostgreSQL service container followed by the end-to-end suite, and a build.
+
+`.github/workflows/publish.yml` runs on a push to `develop` or `main` and publishes both images to
+the GitHub Container Registry:
+
+| Image | |
+| --- | --- |
+| `ghcr.io/siddiquex/phone-book-api` | the API |
+| `ghcr.io/siddiquex/phone-book-web` | the web app |
+
+Each is tagged with its branch (`develop`, `main`), the short commit SHA (`sha-<sha>`), and
+`latest` on the default branch. The packages are private, so pulling them elsewhere begins with
+`docker login ghcr.io`.
+
 Conventions and gotchas live in `AGENTS.md`.

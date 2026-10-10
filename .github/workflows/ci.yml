@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    # The end-to-end suite exercises real CRUD, cursor paging and the digit comparison, so it
+    # needs a migrated database rather than a mock.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: phonebook
+          POSTGRES_PASSWORD: phonebook
+          POSTGRES_DB: phonebook
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U phonebook -d phonebook"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Read straight from the process environment: drizzle.config.ts falls back to dotenv only when
+    # no .env exists, and dotenv is a no-op for files that are absent.
+    env:
+      DATABASE_URL: postgres://phonebook:phonebook@localhost:5432/phonebook
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.4.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "26"
+          # v6 no longer detects pnpm on its own, so the cache has to be named.
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      - run: pnpm db:migrate
+
+      - run: pnpm test:e2e
+
+      - run: pnpm build
