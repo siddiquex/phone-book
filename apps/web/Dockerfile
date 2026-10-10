@@ -7,13 +7,16 @@ WORKDIR /repo
 FROM base AS build
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/web/package.json apps/web/
+COPY shared/db/package.json shared/db/
 COPY shared/config/package.json shared/config/
 RUN pnpm install --frozen-lockfile
 
 COPY . .
 # The /api rewrite target is baked at build time (it lands in the routes manifest)
 ARG API_URL=http://api:5000
-RUN pnpm --filter web build
+# The db package ships dist/ only, which .dockerignore keeps out of the context, and the field
+# limits are imported as values — so it has to compile before the web build resolves it
+RUN pnpm build:shared && pnpm --filter web build
 
 FROM node:26-alpine AS runtime
 WORKDIR /app
