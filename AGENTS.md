@@ -4,7 +4,7 @@ pnpm workspace monorepo. Node 26, pnpm 12.
 
 | Path | Package | What it is |
 | --- | --- | --- |
-| `apps/web` | `web` | Next.js 16 App Router, React 19, Tailwind v4, shadcn/ui |
+| `apps/web` | `web` | Next.js 16 App Router, React 19, Tailwind v4, shadcn/ui, TanStack Query + Table |
 | `apps/api` | `api` | NestJS 12 on Express, Vitest, oxlint |
 | `shared/db` | `@phone-book/db` | Drizzle schema + client (Postgres), migrations |
 | `shared/config` | `@phone-book/config` | tsconfig bases |
@@ -40,8 +40,16 @@ Every command is a script in the relevant `package.json`; root scripts aggregate
 - Docker: `docker compose up -d` is the Postgres-only dev dependency; the app containers are
   behind the `app` profile (`docker compose --profile app up --build`). Both Dockerfiles take
   the **repo root** as build context — a per-app context can't see the workspace lockfile or
-  `shared/*`. The api image uses `pnpm deploy` (which packs like npm, so `apps/api/package.json`
-  keeps a `files: ["dist"]` list) and the web image relies on `output: "standalone"`.
+  `shared/*` — and both run `pnpm build:shared` before their own build, because `.dockerignore`
+  keeps the local `dist/` out of the context. The api image uses `pnpm deploy` (which packs like
+  npm, so `apps/api/package.json` keeps a `files: ["dist"]` list) and the web image relies on
+  `output: "standalone"`.
+- Web server state goes through TanStack Query (`apps/web/lib/use-contacts.tsx`): pages cached by
+  query key, writes optimistic with a rollback. Import `@phone-book/db` for types; `limits` is
+  the one value import, and it is why the web image compiles that package at all.
+- Comment only where a reader would otherwise get it wrong — a non-obvious invariant, a
+  workaround's reason, two values that have to stay in sync. One line, never a restatement of
+  the code below it.
 - Style focus with the ring utilities (`focus-visible:border-ring focus-visible:ring-3
   focus-visible:ring-ring/50`), as shadcn's `Button` does. Do **not** pair `outline-none` with
   `focus-visible:outline-*` — `outline-none` sets `--tw-outline-style: none`, which the outline
