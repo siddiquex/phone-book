@@ -1,0 +1,11 @@
+# Caddy terminates TLS and forwards everything to the web container, which in turn
+# proxies /api/* to the api container. SITE_ADDRESS comes from .env — for a host with no
+# domain it is the Elastic IP under nip.io, e.g. 203.0.113.5.nip.io.
+#
+# Caddy fetches and renews the certificate itself over the HTTP-01 challenge, which is why
+# port 80 must stay open as well as 443.
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}

@@ -82,4 +82,48 @@ Each is tagged with its branch (`develop`, `main`), the short commit SHA (`sha-<
 `latest` on the default branch. The packages are private, so pulling them elsewhere begins with
 `docker login ghcr.io`.
 
+## Deployment
+
+`docker-compose.prod.yml` runs the published images on a host with no toolchain — nothing in it
+builds. `deploy/Caddyfile` terminates TLS, and `deploy/deploy.sh` is the whole deploy. Only Caddy
+is exposed: the api, web and postgres services publish no ports.
+
+Caddy needs a hostname to certify, because certificate authorities issue for names rather than bare
+IP addresses. With no domain of your own, use the Elastic IP under [nip.io](https://nip.io), which
+resolves straight back to it — `203.0.113.5` becomes `203.0.113.5.nip.io`. An Elastic IP is what
+keeps that name stable; a changing address would invalidate the name and its certificate.
+
+### First time on a host
+
+Install Docker Engine and the compose plugin, then make a directory for the stack and copy three
+files into it:
+
+```sh
+mkdir -p /opt/phone-book
+# docker-compose.prod.yml, deploy/Caddyfile, deploy/.env.example -> /opt/phone-book
+# then rename .env.example to .env and fill it in
+```
+
+Log in once so the private images can be pulled:
+
+```sh
+docker login ghcr.io -u <github-user>   # a token with read:packages
+```
+
+### Every deploy
+
+```sh
+./deploy.sh
+```
+
+It pulls the images named by `IMAGE_TAG`, starts Postgres, applies pending migrations, then brings
+the stack up. Migrations run on every deploy and are a no-op when already applied.
+
+Wait for the schema before expecting the app to work. The api's `/health` answers `ok` without
+touching the database, so a stack with an empty database still reports healthy while every
+contacts request fails.
+
+Open ports 80, 443 and 22 in the security group. Caddy obtains the certificate on first start —
+`docker compose -f docker-compose.prod.yml logs -f caddy` shows its progress.
+
 Conventions and gotchas live in `AGENTS.md`.

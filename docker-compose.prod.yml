@@ -1,0 +1,102 @@
+# Runs the published images on a host with no toolchain — nothing here builds.
+#
+# Copy this file, Caddyfile and a filled-in .env into one directory on the host, then:
+#   ./deploy.sh          (or the three commands in deploy/README.md)
+#
+# Caddy is the only service exposed to the internet. It terminates TLS for the nip.io
+# hostname and proxies to the web container, which proxies /api/* to the api container.
+# Nothing else is reachable from outside.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # e.g. 203.0.113.5.nip.io — Caddy obtains and renews the certificate for it.
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS, e.g. 203.0.113.5.nip.io}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Without this volume every restart re-requests them and
+      # eventually hits Let's Encrypt's rate limit.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+  web:
+    image: ghcr.io/${GHCR_OWNER:-siddiquex}/phone-book-web:${IMAGE_TAG:-develop}
+    restart: unless-stopped
+    # The image bakes API_URL=http://api:5000 at build time, so this service must stay
+    # named `api` on this network or the rewrite points at nothing.
+    depends_on:
+      api:
+        condition: service_healthy
+    # The Next.js standalone server accepts connections before its routes are ready and
+    # resets them for the first second or so. start_period covers that window.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  api:
+    image: ghcr.io/${GHCR_OWNER:-siddiquex}/phone-book-api:${IMAGE_TAG:-develop}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-phonebook}:${POSTGRES_PASSWORD:-phonebook}@postgres:5432/${POSTGRES_DB:-phonebook}
+      PORT: 5000
+      # Caddy terminates TLS in front of this, so the cookie is safe to mark Secure.
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-phonebook}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-phonebook}
+      POSTGRES_DB: ${POSTGRES_DB:-phonebook}
+    # No ports: nothing outside this network should reach the database.
+    volumes:
+      # Postgres 18+ stores data in version-specific subdirs — the old /data path makes it refuse to start
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-phonebook} -d ${POSTGRES_DB:-phonebook}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Creates the schema. Nothing else can: drizzle-kit is a devDependency and the api image
+  # ships without it, so `up -d` alone leaves an empty database — and the api's /health
+  # answers ok regardless, because it never touches Postgres. Behind a profile so a plain
+  # `up -d` never starts it; deploy.sh runs it explicitly.
+  migrate:
+    profiles: ["tools"]
+    image: ghcr.io/${GHCR_OWNER:-siddiquex}/phone-book-migrate:${IMAGE_TAG:-develop}
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-phonebook}:${POSTGRES_PASSWORD:-phonebook}@postgres:5432/${POSTGRES_DB:-phonebook}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
