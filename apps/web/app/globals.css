@@ -218,7 +218,7 @@
   transform-origin: left;
   border-end-start-radius: var(--border-radius, 8px);
   border-end-end-radius: var(--border-radius, 8px);
-  animation: toast-timer var(--toast-duration, 6000ms) linear forwards;
+  animation: toast-timer var(--toast-duration) linear forwards;
 }
 
 .cn-toast:hover .cn-timer,

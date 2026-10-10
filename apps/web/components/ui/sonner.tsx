@@ -4,7 +4,6 @@ import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
-/** Kept in sync with --toast-duration so the timer bar matches the dismissal. */
 export const TOAST_DURATION = 6000
 
 const Toaster = ({ ...props }: ToasterProps) => {
