@@ -8,4 +8,4 @@ CREATE TABLE "contacts" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX "contacts_owner_id_idx" ON "contacts" USING btree ("owner_id");
+CREATE INDEX "contacts_owner_name_idx" ON "contacts" USING btree ("owner_id","first_name","last_name","id");

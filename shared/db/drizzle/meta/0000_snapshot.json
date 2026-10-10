@@ -1,5 +1,5 @@
 {
-  "id": "3ab9f3aa-fb23-44bb-b8e2-d12ba7c43c92",
+  "id": "bea1c5ce-4c4c-446b-b6ae-81f3b97e0b2c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -55,11 +55,29 @@
         }
       },
       "indexes": {
-        "contacts_owner_id_idx": {
-          "name": "contacts_owner_id_idx",
+        "contacts_owner_name_idx": {
+          "name": "contacts_owner_name_idx",
           "columns": [
             {
               "expression": "owner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "first_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

@@ -18,14 +18,20 @@ export const contacts = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  // Every query filters by owner; without this it is a sequential scan.
-  (table) => [index("contacts_owner_id_idx").on(table.ownerId)],
+  // Owner first, then the page order, so the keyset walk needs no sort.
+  (table) => [
+    index("contacts_owner_name_idx").on(
+      table.ownerId,
+      table.firstName,
+      table.lastName,
+      table.id,
+    ),
+  ],
 );
 
-type Contact = typeof contacts.$inferSelect;
+export type Contact = typeof contacts.$inferSelect;
 type NewContact = typeof contacts.$inferInsert;
 
-// What the API returns: no owner id (it is the credential) and ISO strings, not row Dates.
 export type PublicContact = Omit<Contact, "ownerId" | "createdAt" | "updatedAt"> & {
   createdAt: string;
   updatedAt: string;
@@ -46,12 +52,15 @@ export const contactUpdateSchema = clientFields.partial().refine(
   { message: "Provide at least one field to update" },
 );
 
+const contactId = createSelectSchema(contacts).shape.id;
+
 export const contactIdsSchema = z.object({
-  ids: z.array(createSelectSchema(contacts).shape.id).min(1).max(1000),
+  ids: z.array(contactId).min(1).max(1000),
 });
 
 export type ContactIds = z.infer<typeof contactIdsSchema>;
 
+/** Cursor and limit paging; the search narrows before either applies. */
 export const contactListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   cursor: z.string().max(512).optional(),
@@ -60,5 +69,5 @@ export const contactListQuerySchema = z.object({
 
 export type ContactListQuery = z.infer<typeof contactListQuerySchema>;
 
-/** `total` counts everything the search matches, not the page. */
+/** A page, the cursor for the next one, and the size of the whole match. */
 export type ContactPage = { items: PublicContact[]; nextCursor: string | null; total: number };
