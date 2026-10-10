@@ -30,6 +30,11 @@ services:
   web:
     image: ghcr.io/${GHCR_OWNER:-siddiquex}/phone-book-web:${IMAGE_TAG:-develop}
     restart: unless-stopped
+    environment:
+      # Next's standalone server binds to $HOSTNAME, which Docker sets to the container ID.
+      # Left alone it listens on the container's own address only, so a loopback healthcheck
+      # can never connect and the service is permanently unhealthy. 0.0.0.0 listens everywhere.
+      HOSTNAME: 0.0.0.0
     # The image bakes API_URL=http://api:5000 at build time, so this service must stay
     # named `api` on this network or the rewrite points at nothing.
     depends_on:
