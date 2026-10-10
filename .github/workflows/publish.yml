@@ -45,6 +45,16 @@ jobs:
             type=sha,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Tags for the migrate image
+        id: migrate
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/phone-book-migrate
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
       # Both Dockerfiles build from the repo root: a per-app context cannot see the workspace
       # lockfile or shared/*. API_URL keeps its Dockerfile default, http://api:5000, because that
       # is the service name on the compose network these images are meant to run on.
@@ -67,5 +77,18 @@ jobs:
           push: true
           tags: ${{ steps.web.outputs.tags }}
           labels: ${{ steps.web.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Applies migrations. Published alongside the others so a deploy never has to be
+      # paired with a checkout of the repo.
+      - name: Build and push the migrate image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: shared/db/Dockerfile
+          push: true
+          tags: ${{ steps.migrate.outputs.tags }}
+          labels: ${{ steps.migrate.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
